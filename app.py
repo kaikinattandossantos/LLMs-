@@ -1,9 +1,9 @@
+from flask import Flask, render_template, request
 from dotenv import load_dotenv
-#lingua humana vai ser HumanMessage e lingua do sistema SystemMessage
-from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
-#a resposta será apenas o texto Str
+from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.prompts import ChatPromptTemplate
 import os
 
 load_dotenv()
@@ -26,14 +26,49 @@ modelo = ChatGoogleGenerativeAI(
 
 mensagens = [
     SystemMessage("traduza o texto a seguir para ingles"),
-    HumanMessage("eu gosto de voce malu, meu amor")
+    HumanMessage("{texto}")
 ]
 
-#sempre usar invoke para mandar o modelo fazer algo
-# | serve como "então"
-chain = modelo | parser
-
-texto_final = chain.invoke(mensagens)
-print(texto_final)
 
 
+template_mensagem = ChatPromptTemplate.from_messages([
+    ("system", "Traduza o texto a seguir para {idioma}, sem qualquer explicação ou texto introdutório"),
+    ("user", "{texto}" ),
+])
+
+template_mensagem.invoke({"idioma": "inglês", "texto": "texto do usuário"})
+
+
+chain = template_mensagem | modelo | parser
+
+
+
+app = Flask(__name__)
+
+
+@app.route('/', methods=['GET', 'POST'])
+def home():
+    traducao = None
+    texto_original = ""
+    idioma_original = ""
+
+    if request.method == 'POST':
+        idioma = request.form.get('idioma')
+        texto = request.form.get('texto')
+
+        texto_original = texto
+        idioma_original = idioma
+
+        if idioma and texto:
+            traducao = chain.invoke({"idioma": idioma, "texto": texto})
+
+    return render_template(
+        'index.html',
+        traducao=traducao,
+        texto_original=texto_original,
+        idioma_original=idioma_original
+        )
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
